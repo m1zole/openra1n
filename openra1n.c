@@ -1455,7 +1455,6 @@ gaster_checkm8(usb_handle_t *handle)
             if(ret)
             {
                 LOG_DEBUG("Stage %d succeeded", stage);
-                LOG_DEBUG("1459");
                 if(stage == 0) {
                     reset_usb_handle(handle);
                     close_usb_handle(handle);
