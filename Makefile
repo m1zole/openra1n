@@ -2,7 +2,6 @@ CFLAGS = -I./include -Wall -Wno-pointer-sign
 CFLAGS += -Os
 BIN = openra1n
 SOURCE = openra1n.c lz4/lz4.c lz4/lz4hc.c
-PSOURCE = pongo.c lz4/lz4.c lz4/lz4hc.c
 CC = gcc
 CFLAGS += -DHAVE_LIBUSB
 LDFLAGS += -lusb-1.0
