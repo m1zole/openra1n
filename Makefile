@@ -1,20 +1,22 @@
-CFLAGS = -I./include -Wall -Wno-pointer-sign
+CFLAGS = -isysroot ~/sdks/MacOSX11.3.sdk -I./include -Wall -Wno-pointer-sign -x objective-c
 CFLAGS += -Os
-BIN = openra1n
-SOURCE = openra1n.c lz4/lz4.c lz4/lz4hc.c
+RA1N = openra1n
+TERM = pongoterm
+RSOURCE = openra1n.c lz4/lz4.c lz4/lz4hc.c
+TSOURCE = pongoterm.c
 ifeq ($(LIBUSB),1)
 	CC = gcc
 	CFLAGS += -DHAVE_LIBUSB
 	LDFLAGS += -lusb-1.0
 else
 	CC = xcrun -sdk macosx gcc
-	CFLAGS += -arch x86_64 -arch arm64
-	LDFLAGS += -framework IOKit -framework CoreFoundation
+	CFLAGS += -arch x86_64
+	LDFLAGS += -framework Foundation -framework IOKit -framework CoreFoundation
 endif
 
 .PHONY: all clean payloads openra1n
 
-all: payloads openra1n
+all: payloads openra1n pongoterm
 
 payloads:
 	@mkdir -p include/payloads
@@ -24,9 +26,12 @@ payloads:
 	done
 
 openra1n: payloads
-	@echo " CC     $(BIN)"
-	@$(CC) $(CFLAGS) $(SOURCE) $(LDFLAGS) -o $(BIN)
-	strip $(BIN)
+	@echo " CC     $(RA1N)"
+	@$(CC) $(CFLAGS) $(RSOURCE) $(LDFLAGS) -o $(RA1N)
+
+pongoterm: payloads
+	@echo " CC     $(TERM)"
+	@$(CC) $(CFLAGS) $(TSOURCE) $(LDFLAGS) -o $(TERM)
 
 clean:
 	@echo " CLEAN  $(BIN)"

@@ -31,6 +31,20 @@
 #include <lz4/lz4hc.h>
 #include <common/log.h>
 
+#include <errno.h>
+#include <fcntl.h>              // open
+#include <pthread.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>             // exit, strtoull
+#include <string.h>             // strlen, strerror, memcpy, memmove
+#include <unistd.h>             // close
+#include <wordexp.h>
+#include <sys/mman.h>           // mmap, munmap
+#include <sys/stat.h>           // fstst
+#include <getopt.h>
+
 #include <payloads/s8000.bin.h>
 #include <payloads/s8001.bin.h>
 #include <payloads/s8003.bin.h>
@@ -118,6 +132,10 @@ extern unsigned payloads_s8000_bin_len, payloads_s8001_bin_len, payloads_s8003_b
 
 extern uint8_t payloads_Pongo_bin[], payloads_lz4dec_bin[];
 extern unsigned payloads_Pongo_bin_len, payloads_lz4dec_bin_len;
+
+static bool override_Pongo = false;
+unsigned int override_Pongo_bin_len = 0;
+unsigned char *override_Pongo_bin = NULL;
 
 static uint16_t cpid;
 static const char *pwnd_str = " YOLO:checkra1n";
@@ -1316,9 +1334,18 @@ checkm8_stage_patch(const usb_handle_t *handle)
 static void compress_pongo(void *out,
                            size_t *out_len)
 {
+    if(override_Pongo)
+    {
+    size_t len = override_Pongo_bin_len;
+    size_t out_len_ = *out_len;
+    *out_len = LZ4_compress_HC(override_Pongo_bin, out, len, out_len_, LZ4HC_CLEVEL_MAX);
+    }
+    else
+    {
     size_t len = payloads_Pongo_bin_len;
     size_t out_len_ = *out_len;
     *out_len = LZ4_compress_HC(payloads_Pongo_bin, out, len, out_len_, LZ4HC_CLEVEL_MAX);
+    }
 }
 
 static bool checkm8_boot_pongo(usb_handle_t *handle)
@@ -1329,10 +1356,25 @@ static bool checkm8_boot_pongo(usb_handle_t *handle)
     LOG_DEBUG("Appending shellcode to the top of pongoOS (512 bytes)");
     void *shellcode = malloc(512);
     memcpy(shellcode, payloads_lz4dec_bin, payloads_lz4dec_bin_len);
-    size_t out_len = payloads_Pongo_bin_len;
+    size_t out_len = 0;
+    if(override_Pongo)
+    {
+        out_len = override_Pongo_bin_len;
+    }
+    else
+    {
+        out_len = payloads_Pongo_bin_len;
+    }
     void *out = malloc(out_len);
     compress_pongo(out, &out_len);
-    LOG_DEBUG("Compressed pongoOS from %u to %zu bytes", payloads_Pongo_bin_len, out_len);
+    if(override_Pongo)
+    {
+        LOG_DEBUG("Compressed pongoOS from %u to %zu bytes", override_Pongo_bin_len, out_len);
+    }
+    else
+    {
+        LOG_DEBUG("Compressed pongoOS from %u to %zu bytes", payloads_Pongo_bin_len, out_len);
+    }
     void *tmp = malloc(out_len + 512);
     memcpy(tmp, shellcode, 512);
     memcpy(tmp + 512, out, out_len);
@@ -1439,6 +1481,34 @@ gaster_checkm8(usb_handle_t *handle)
 
 int main(int argc, char **argv)
 {
+        int opt = 0;
+    static struct option longopts[] = {
+        { "override_Pongo",       required_argument, NULL, 'k' },
+        { NULL, 0, NULL, 0 }
+    };
+    
+    while ((opt = getopt_long(argc, argv, "k:", longopts, NULL)) > 0) {
+        switch (opt) {
+            case 'k':
+                LOG_DEBUG("overwrite pongo\n");
+                override_Pongo = 1;
+                FILE *Pongo = fopen(optarg, "rb");
+                if (Pongo == NULL) {
+			        LOG_ERROR("PongoOS doesn't find.\n");
+			        return -1;
+		        }
+                fseek(Pongo, 0, SEEK_END);
+		        override_Pongo_bin_len = ftell(Pongo);
+		        fseek(Pongo, 0, SEEK_SET);
+	        	override_Pongo_bin = malloc(override_Pongo_bin_len);
+	        	fread(override_Pongo_bin, override_Pongo_bin_len, 1, Pongo);
+	        	fclose(Pongo);
+                break;
+
+            default:
+                break;
+        }
+    }
     LOG_RAINBOW("-=-=- openra1n -=-=-");
     int ret = EXIT_FAILURE;
     usb_handle_t handle;
