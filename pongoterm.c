@@ -41,11 +41,9 @@
 #include "payloads/kpf.bin.h"
 #include "payloads/ramdisk.dmg.h"
 #include "payloads/overlay.dmg.h"
-#include "payloads/fdt.bin.h"
-#include "payloads/initrd.dmg.h"
-#include "payloads/Image.lzma-16k.h"
 #include "payloads/legacy_kpf.bin.h"
 #include "payloads/legacy_ramdisk.dmg.h"
+#include "payloads/kok3shi9.bin.h"
 
 #define checkrain_option_none               0x00000000
 // KPF options
@@ -74,17 +72,13 @@ enum AUTOBOOT_STAGE {
 enum AUTOBOOT_STAGE CURRENT_STAGE = NONE;
 
 static bool use_autoboot = false;
-static bool use_linux = false;
 static bool use_safemode = false;
 static bool use_verbose_boot = false;
-static bool use_legacy = false;
+static bool use_legacy   = false;
+static bool use_kok3shi9 = false;
 static bool override_kpf = false;
-static bool override_kernel = false;
 static bool override_ramdisk = false;
 static bool override_overlay = false;
-static bool override_fdt = false;
-static bool override_cmdline = false;
-static bool override_initrd = false;
 
 static char* bootArgs = NULL;
 static uint32_t kpf_flags = checkrain_option_none;
@@ -572,7 +566,14 @@ static void* io_main(void *arg)
                         if(ret == USB_RET_SUCCESS)
                         {
                             LOG("%s", "modload");
-                            CURRENT_STAGE = SEND_STAGE_RAMDISK;
+                            if(use_kok3shi9)
+                            {
+                                CURRENT_STAGE = BOOTUP_STAGE;
+                            }
+                            else
+                            {
+                                CURRENT_STAGE = SEND_STAGE_RAMDISK;
+                            }
                         }
                         else
                         {
@@ -746,16 +747,6 @@ static void* io_main(void *arg)
                             sprintf(str, "%s %s", str, bootArgs);
                         }
                         
-                        if(use_verbose_boot)
-                        {
-                            if((strlen(str) + sizeof("-v")) > 256) {
-                                ERR("bootArgs is too large!");
-                                CURRENT_STAGE = USB_TRANSFER_ERROR;
-                                continue;
-                            }
-                            sprintf(str, "%s %s", str, "-v");
-                        }
-                        
                         
                         char xstr[256 + 7];
                         memset(&xstr, 0x0, 256 + 7);
@@ -764,7 +755,7 @@ static void* io_main(void *arg)
                         ret = USBControlTransfer(stuff->handle, 0x21, 3, 0, 0, (uint32_t)(strlen(xstr)), xstr, NULL);
                         if(ret == USB_RET_SUCCESS)
                         {
-                            LOG("%s", str);
+                            LOG("xargs %s", str);
                             CURRENT_STAGE = BOOTUP_STAGE;
                         }
                         else
@@ -798,23 +789,6 @@ static void* io_main(void *arg)
             }
             
             exit(0); // TODO: ok with libusb?
-        }
-        if(use_linux)
-        {
-                USBControlTransfer(stuff->handle, 0x21, 3, 0, 0, (uint32_t)(strlen("fuse lock\n")), "fuse lock\n", NULL);
-                USBControlTransfer(stuff->handle, 0x21, 3, 0, 0, (uint32_t)(strlen("sep auto\n")), "sep auto\n", NULL);
-                size_t size = payloads_fdt_bin_len;
-                USBControlTransfer(stuff->handle, 0x21, 1, 0, 0, 4, &size, NULL);
-                USBBulkUpload(stuff->handle, payloads_fdt_bin, payloads_fdt_bin_len);
-                USBControlTransfer(stuff->handle, 0x21, 3, 0, 0, (uint32_t)(strlen("fdt\n")), "fdt\n", NULL);
-                size = payloads_initrd_dmg_len;
-                USBControlTransfer(stuff->handle, 0x21, 1, 0, 0, 4, &size, NULL);
-                USBBulkUpload(stuff->handle, payloads_initrd_dmg, payloads_initrd_dmg_len);
-                USBControlTransfer(stuff->handle, 0x21, 3, 0, 0, (uint32_t)(strlen("ramdisk\n")), "ramdisk\n", NULL);
-                size = payloads_Image_lzma_16k_len;
-                USBControlTransfer(stuff->handle, 0x21, 1, 0, 0, 4, &size, NULL);
-                USBBulkUpload(stuff->handle, payloads_Image_lzma_16k, payloads_Image_lzma_16k_len);
-                USBControlTransfer(stuff->handle, 0x21, 3, 0, 0, (uint32_t)(strlen("bootl\n")), "bootl\n", NULL);
         }
         if(len > sizeof(buf))
         {
@@ -971,22 +945,18 @@ int main(int argc, char** argv)
     static struct option longopts[] = {
         { "help",               no_argument,       NULL, 'h' },
         { "autoboot",           no_argument,       NULL, 'a' },
-        { "linux",              no_argument,       NULL, 'l' },
         { "extra-bootargs",     required_argument, NULL, 'e' },
         { "safemode",           no_argument,       NULL, 's' },
-        { "legacy",             no_argument,       NULL, 'g' },
+        { "legacy",             no_argument,       NULL, 'l' },
+        { "kok3shi9",           no_argument,       NULL, '9' },
         { "verbose-boot",       no_argument,       NULL, 'v' },
         { "override_kpf",       required_argument, NULL, 'k' },
-        { "override-krn",       required_argument, NULL, 'K' },
         { "override-rdk",       required_argument, NULL, 'r' },
-        { "override-ird",       required_argument, NULL, 'i' },
         { "override-ovl",       required_argument, NULL, 'o' },
-        { "override-cmd",       required_argument, NULL, 'c' },
-        { "override-fdt",       required_argument, NULL, 'f' },
         { NULL, 0, NULL, 0 }
     };
     
-    while ((opt = getopt_long(argc, argv, "alghe:svk:K:r:o:c:f:i:", longopts, NULL)) > 0) {
+    while ((opt = getopt_long(argc, argv, "alh9e:svk:r:o:i:", longopts, NULL)) > 0) {
         switch (opt) {
             case 'h':
                 usage(argv[0]);
@@ -996,11 +966,6 @@ int main(int argc, char** argv)
                 use_autoboot = 1;
                 LOG("selected: autoboot mode");
                 break;
-
-            case 'l':
-                use_linux = 1;
-                LOG("selected: linux mode");
-                return 0;
 
             case 'e':
                 if (optarg) {
@@ -1017,14 +982,14 @@ int main(int argc, char** argv)
                 use_verbose_boot = 1;
                 break;
 
+            case '9':
+                use_kok3shi9 = 1;
+                load_kpf = payloads_kok3shi9_bin;
+                load_kpf_len = payloads_kok3shi9_bin_len;
+
             case 'k':
                 override_kpf = 1;
                 override_file(load_kpf, load_kpf_len, optarg);
-                
-                break;
-
-            case 'K':
-                override_kernel = 1;
                 break;
 
             case 'r':
@@ -1037,19 +1002,7 @@ int main(int argc, char** argv)
                 override_file(load_overlay, load_overlay_len, optarg);
                 break;
 
-            case 'c':
-                override_cmdline = 1;
-                break;
-
-            case 'f':
-                override_fdt = 1;
-                break;
-
-            case 'i':
-                override_initrd = 1;
-                break;
-
-            case 'g':
+            case 'l':
                 use_legacy = 1;
                 load_kpf = payloads_legacy_kpf_bin;
                 load_kpf_len = payloads_legacy_kpf_bin_len;
