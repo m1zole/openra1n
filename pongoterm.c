@@ -378,16 +378,19 @@ static void* io_main(void *arg)
 {
     if(load_kpf == NULL)
     {
+        LOG("use default kpf");
         load_kpf = payloads_kpf_bin;
         load_kpf_len = payloads_kpf_bin_len;
     }
     if(load_ramdisk == NULL)
     {
+        LOG("use default ramdisk");
         load_ramdisk = payloads_ramdisk_dmg;
         load_ramdisk_len  = payloads_ramdisk_dmg_len;
     }
     if(load_overlay == NULL)
     {
+        LOG("use default overlay");
         load_overlay = payloads_overlay_dmg;
         load_overlay_len = payloads_overlay_dmg_len;
     }
@@ -584,8 +587,6 @@ static void* io_main(void *arg)
                     
                     if(CURRENT_STAGE == SEND_STAGE_RAMDISK)
                     {
-                        unsigned char *load_ramdisk = payloads_ramdisk_dmg;
-                        unsigned int load_ramdisk_len  = payloads_ramdisk_dmg_len;
                         size_t size = load_ramdisk_len;
                         ret = USBControlTransfer(stuff->handle, 0x21, 1, 0, 0, 4, &size, NULL);
                         if(ret == USB_RET_SUCCESS)
@@ -684,7 +685,14 @@ static void* io_main(void *arg)
                             memset(&str, 0x0, 64);
                             sprintf(str, "kpf_flags 0x%08x", kpf_flags);
                             LOG("%s", str);
-                            CURRENT_STAGE = SETUP_STAGE_CHECKRAIN_FLAGS;
+                            if(use_legacy)
+                            {
+                                CURRENT_STAGE = SETUP_STAGE_XARGS;
+                            }
+                            else
+                            {
+                                CURRENT_STAGE = SETUP_STAGE_CHECKRAIN_FLAGS;
+                            }
                         }
                         else
                         {
@@ -725,6 +733,11 @@ static void* io_main(void *arg)
                         memset(&str, 0x0, 256);
                         
                         char* defaultBootArgs = NULL;
+                        
+                        if(use_legacy)
+                        {
+                            defaultBootArgs = "rootdev=md0";
+                        }
                         
                         if(defaultBootArgs)
                         {
