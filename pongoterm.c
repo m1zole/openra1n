@@ -76,13 +76,21 @@ static bool use_safemode = false;
 static bool use_verbose_boot = false;
 static bool use_legacy   = false;
 static bool use_kok3shi9 = false;
-static bool override_kpf = false;
-static bool override_ramdisk = false;
-static bool override_overlay = false;
 
 static char* bootArgs = NULL;
 static uint32_t kpf_flags = checkrain_option_none;
 static uint32_t checkra1n_flags = checkrain_option_none;
+
+static char *override_kpf = NULL;
+static char *override_ramdisk = NULL;
+static char *override_overlay = NULL;
+
+//thanks to palera1n!
+//https://github.com/palera1n/palera1n/blob/main/include/palerain.h#L143
+typedef struct {
+    unsigned char* ptr; /* pointer to the override file in memory */
+    uint32_t len; /* length of override file */
+} override_file_t;
 
 unsigned char *load_kpf = NULL;
 unsigned int load_kpf_len = 0;
@@ -358,41 +366,86 @@ static void write_stdout(char *buf, uint32_t len)
     }
 }
 
-static void override_file(unsigned char *target, unsigned int target_len, const char* file)
+static override_file_t override_file(const char* file)
 {
+    override_file_t ret;
     FILE *fp = fopen(file, "rb");
     if (fp == NULL) {
 		ERR("File doesn't find.\n");
-		return;
+        ret.len = 0;
+        ret.ptr = NULL;
+		return ret;
 	}
     fseek(fp, 0, SEEK_END);
-	target_len = ftell(fp);
+    ret.len = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
-	target = malloc(target_len);
-	fread(target, target_len, 1, fp);
+    ret.ptr = malloc(ret.len);
+	fread(ret.ptr, ret.len, 1, fp);
 	fclose(fp);
-    return;
+    return ret;
 }
 
 static void* io_main(void *arg)
 {
-    if(load_kpf == NULL)
+    if(override_kpf == NULL)
     {
-        LOG("use default kpf");
-        load_kpf = payloads_kpf_bin;
-        load_kpf_len = payloads_kpf_bin_len;
+        if(use_kok3shi9)
+        {
+            LOG("kok3shi module");
+            load_kpf = payloads_kok3shi9_bin;
+            load_kpf_len = payloads_kok3shi9_bin_len;
+        }
+        else if(use_legacy)
+        {
+            LOG("legacy kpf");
+            load_kpf = payloads_legacy_kpf_bin;
+            load_kpf_len = payloads_legacy_kpf_bin_len;
+        }
+        else
+        {
+            LOG("nomal kpf");
+            load_kpf = payloads_kpf_bin;
+            load_kpf_len = payloads_kpf_bin_len;
+        }
     }
-    if(load_ramdisk == NULL)
+    else
     {
-        LOG("use default ramdisk");
-        load_ramdisk = payloads_ramdisk_dmg;
-        load_ramdisk_len  = payloads_ramdisk_dmg_len;
+        override_file_t kpf = override_file(override_kpf);
+        load_kpf = kpf.ptr;
+        load_kpf_len = kpf.len;
     }
-    if(load_overlay == NULL)
+    
+    if(override_ramdisk == NULL)
     {
-        LOG("use default overlay");
+        if(use_legacy)
+        {
+            LOG("legacy ramdisk");
+            load_ramdisk = payloads_legacy_ramdisk_dmg;
+            load_ramdisk_len = payloads_legacy_ramdisk_dmg_len;
+        }
+        else
+        {
+            LOG("bakera1n's ramdisk");
+            load_ramdisk = payloads_ramdisk_dmg;
+            load_ramdisk_len  = payloads_ramdisk_dmg_len;
+        }
+    }
+    else
+    {
+        override_file_t ramdisk = override_file(override_ramdisk);
+        load_ramdisk = ramdisk.ptr;
+        load_ramdisk_len = ramdisk.len;
+    }
+    if(override_overlay == NULL)
+    {
         load_overlay = payloads_overlay_dmg;
         load_overlay_len = payloads_overlay_dmg_len;
+    } 
+    else
+    {
+        override_file_t overlay = override_file(override_overlay);
+        load_overlay = overlay.ptr;
+        load_overlay_len = overlay.len;
     }
     stuff_t *stuff = arg;
     int r = pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -685,14 +738,7 @@ static void* io_main(void *arg)
                             memset(&str, 0x0, 64);
                             sprintf(str, "kpf_flags 0x%08x", kpf_flags);
                             LOG("%s", str);
-                            if(use_legacy)
-                            {
-                                CURRENT_STAGE = SETUP_STAGE_XARGS;
-                            }
-                            else
-                            {
-                                CURRENT_STAGE = SETUP_STAGE_CHECKRAIN_FLAGS;
-                            }
+                            CURRENT_STAGE = SETUP_STAGE_CHECKRAIN_FLAGS;
                         }
                         else
                         {
@@ -953,7 +999,7 @@ static inline __attribute__((always_inline))  void usage(const char* s)
 }
 
 int main(int argc, char** argv)
-{   
+{
     int opt = 0;
     static struct option longopts[] = {
         { "help",               no_argument,       NULL, 'h' },
@@ -995,32 +1041,26 @@ int main(int argc, char** argv)
                 use_verbose_boot = 1;
                 break;
 
-            case '9':
-                use_kok3shi9 = 1;
-                load_kpf = payloads_kok3shi9_bin;
-                load_kpf_len = payloads_kok3shi9_bin_len;
-
             case 'k':
-                override_kpf = 1;
-                override_file(load_kpf, load_kpf_len, optarg);
+                override_kpf = strdup(optarg);
+                LOG("kpf:     [%s]", override_kpf);
                 break;
 
             case 'r':
-                override_ramdisk = 1;
-                override_file(load_ramdisk, load_ramdisk_len, optarg);
+                override_ramdisk = strdup(optarg);
+                LOG("ramdisk: [%s]", override_ramdisk);
                 break;
 
             case 'o':
-                override_overlay = 1;
-                override_file(load_overlay, load_overlay_len, optarg);
+                override_overlay = strdup(optarg);
+                LOG("overlay: [%s]", override_overlay);
                 break;
+
+            case '9':
+                use_kok3shi9 = 1;
 
             case 'l':
                 use_legacy = 1;
-                load_kpf = payloads_legacy_kpf_bin;
-                load_kpf_len = payloads_legacy_kpf_bin_len;
-                load_ramdisk = payloads_legacy_ramdisk_dmg;
-                load_ramdisk_len = payloads_legacy_ramdisk_dmg_len;
                 break;
 
             default:
