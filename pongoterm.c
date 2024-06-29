@@ -38,6 +38,9 @@
 #include <sys/stat.h>           // fstst
 #include <getopt.h>
 
+#include <common/common.h>
+#include <common/log.h>
+
 #include "payloads/kpf.bin.h"
 #include "payloads/ramdisk.dmg.h"
 #include "payloads/overlay.dmg.h"
@@ -71,42 +74,26 @@ enum AUTOBOOT_STAGE {
 
 enum AUTOBOOT_STAGE CURRENT_STAGE = NONE;
 
-static bool use_autoboot = false;
-static bool use_safemode = false;
-static bool use_verbose_boot = false;
-static bool use_legacy   = false;
-static bool use_kok3shi9 = false;
+extern char* bootArgs;
+extern bool use_autoboot;
+extern bool use_safemode;
+extern bool use_verbose_boot;
+extern bool use_legacy;
+extern bool use_kok3shi9;
 
-static char* bootArgs = NULL;
+extern char *override_kpf;
+extern char *override_ramdisk;
+extern char *override_overlay;
+
 static uint32_t kpf_flags = checkrain_option_none;
 static uint32_t checkra1n_flags = checkrain_option_none;
 
-static char *override_kpf = NULL;
-static char *override_ramdisk = NULL;
-static char *override_overlay = NULL;
-
-//thanks to palera1n!
-//https://github.com/palera1n/palera1n/blob/main/include/palerain.h#L143
-typedef struct {
-    unsigned char* ptr; /* pointer to the override file in memory */
-    uint32_t len; /* length of override file */
-} override_file_t;
-
-unsigned char *load_kpf = NULL;
-unsigned int load_kpf_len = 0;
-unsigned char *load_ramdisk = NULL;
-unsigned int load_ramdisk_len = 0;
-unsigned char *load_overlay = NULL;
-unsigned int load_overlay_len = 0;
-
-#define LOG(fmt, ...) do { fprintf(stderr, "\x1b[1;96m" fmt "\x1b[0m\n", ##__VA_ARGS__); } while(0)
-#define ERR(fmt, ...) do { fprintf(stderr, "\x1b[1;91m" fmt "\x1b[0m\n", ##__VA_ARGS__); } while(0)
-
-#ifdef DEVBUILD
-#define DEVLOG(fmt, ...) do { fprintf(stderr, "\x1b[1;95m" fmt "\x1b[0m\n", ##__VA_ARGS__); } while(0)
-#else
-#define DEVLOG(fmt, ...)
-#endif
+extern unsigned char *load_kpf;
+extern unsigned int load_kpf_len;
+extern unsigned char *load_ramdisk;
+extern unsigned int load_ramdisk_len;
+extern unsigned char *load_overlay;
+extern unsigned int load_overlay_len;
 
 // Keep in sync with Pongo
 #define PONGO_USB_VENDOR    0x05ac
@@ -364,25 +351,6 @@ static void write_stdout(char *buf, uint32_t len)
         buf += s;
         len -= s;
     }
-}
-
-static override_file_t override_file(const char* file)
-{
-    override_file_t ret;
-    FILE *fp = fopen(file, "rb");
-    if (fp == NULL) {
-		ERR("File doesn't find.\n");
-        ret.len = 0;
-        ret.ptr = NULL;
-		return ret;
-	}
-    fseek(fp, 0, SEEK_END);
-    ret.len = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-    ret.ptr = malloc(ret.len);
-	fread(ret.ptr, ret.len, 1, fp);
-	fclose(fp);
-    return ret;
 }
 
 static void* io_main(void *arg)
@@ -986,6 +954,7 @@ static inline __attribute__((always_inline))  void io_stop(stuff_t *stuff)
     }
 }
 
+#ifndef DEVBUILD
 static inline __attribute__((always_inline))  void usage(const char* s)
 {
     printf("Usage: %s [-ahsv] [-e <boot-args>]\n", s);
@@ -997,9 +966,11 @@ static inline __attribute__((always_inline))  void usage(const char* s)
     
     return;
 }
+#endif
 
-int main(int argc, char** argv)
+int pongoterm(int argc, char** argv)
 {
+#ifndef DEVBUILD
     int opt = 0;
     static struct option longopts[] = {
         { "help",               no_argument,       NULL, 'h' },
@@ -1058,6 +1029,7 @@ int main(int argc, char** argv)
 
             case '9':
                 use_kok3shi9 = 1;
+                break;
 
             case 'l':
                 use_legacy = 1;
@@ -1067,6 +1039,18 @@ int main(int argc, char** argv)
                 break;
         }
     }
-    
+#else
+    DEVLOG("autoboot: [%d]", use_autoboot);
+    DEVLOG("kok3shi9: [%d]", use_kok3shi9 );
+    DEVLOG("legacy:   [%d]", use_legacy);
+#endif
     return pongoterm_main();
 }
+
+#ifndef DEVBUILD
+int main(int argc, char** argv)
+{
+    pongoterm(argc, argv);
+}
+#endif
+

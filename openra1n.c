@@ -30,6 +30,7 @@
 #include <lz4/lz4.h>
 #include <lz4/lz4hc.h>
 #include <common/log.h>
+#include <common/common.h>
 
 #include <errno.h>
 #include <fcntl.h>              // open
@@ -58,6 +59,10 @@
 #include <payloads/Pongo.bin.h>
 #include <payloads/lz4dec.bin.h>
 
+extern char *override_pongo;
+extern unsigned char *load_pongo;
+extern unsigned int load_pongo_len;
+
 #define DFU_DNLOAD                      (1)
 #define APPLE_VID                       (0x5AC)
 #define DFU_STATUS_OK                   (0)
@@ -65,6 +70,7 @@
 #define DFU_CLR_STATUS                  (4)
 #define MAX_BLOCK_SZ                    (0x50)
 #define DFU_MODE_PID                    (0x1227)
+#define PONGO_PID                       (0x4141)
 #define DFU_STATE_MANIFEST              (7)
 #define EP0_MAX_PACKET_SZ               (0x40)
 #define DFU_FILE_SUFFIX_LEN             (16)
@@ -132,10 +138,6 @@ extern unsigned payloads_s8000_bin_len, payloads_s8001_bin_len, payloads_s8003_b
 
 extern uint8_t payloads_Pongo_bin[], payloads_lz4dec_bin[];
 extern unsigned payloads_Pongo_bin_len, payloads_lz4dec_bin_len;
-
-static bool override_Pongo = false;
-unsigned int override_Pongo_bin_len = 0;
-unsigned char *override_Pongo_bin = NULL;
 
 static uint16_t cpid;
 static const char *pwnd_str = " YOLO:checkra1n";
@@ -1232,61 +1234,61 @@ checkm8_stage_patch(const usb_handle_t *handle)
     switch (cpid)
     {
         case 0x8000:
-            LOG_DEBUG("setting up stage 2 for s8000");
+            DEVLOG("setting up stage 2 for s8000");
             checkra1n_payload    = payloads_s8000_bin;
             checkra1n_payload_sz = payloads_s8000_bin_len;
             break;
             
         case 0x8001:
-            LOG_DEBUG("setting up stage 2 for s8001");
+            DEVLOG("setting up stage 2 for s8001");
             checkra1n_payload    = payloads_s8001_bin;
             checkra1n_payload_sz = payloads_s8001_bin_len;
             break;
             
         case 0x8003:
-            LOG_DEBUG("setting up stage 2 for s8003");
+            DEVLOG("setting up stage 2 for s8003");
             checkra1n_payload    = payloads_s8003_bin;
             checkra1n_payload_sz = payloads_s8003_bin_len;
             break;
             
         case 0x7000:
-            LOG_DEBUG("setting up stage 2 for t7000");
+            DEVLOG("setting up stage 2 for t7000");
             checkra1n_payload    = payloads_t7000_bin;
             checkra1n_payload_sz = payloads_t7000_bin_len;
             break;
             
         case 0x7001:
-            LOG_DEBUG("setting up stage 2 for t7001");
+            DEVLOG("setting up stage 2 for t7001");
             checkra1n_payload    = payloads_t7001_bin;
             checkra1n_payload_sz = payloads_t7001_bin_len;
             break;
             
         case 0x8010:
-            LOG_DEBUG("setting up stage 2 for t8010");
+            DEVLOG("setting up stage 2 for t8010");
             checkra1n_payload    = payloads_t8010_bin;
             checkra1n_payload_sz = payloads_t8010_bin_len;
             break;
             
         case 0x8011:
-            LOG_DEBUG("setting up stage 2 for t8011");
+            DEVLOG("setting up stage 2 for t8011");
             checkra1n_payload    = payloads_t8011_bin;
             checkra1n_payload_sz = payloads_t8011_bin_len;
             break;
             
         case 0x8012:
-            LOG_DEBUG("setting up stage 2 for t8012");
+            DEVLOG("setting up stage 2 for t8012");
             checkra1n_payload    = payloads_t8012_bin;
             checkra1n_payload_sz = payloads_t8012_bin_len;
             break;
             
         case 0x8015:
-            LOG_DEBUG("setting up stage 2 for t8015");
+            DEVLOG("setting up stage 2 for t8015");
             checkra1n_payload    = payloads_t8015_bin;
             checkra1n_payload_sz = payloads_t8015_bin_len;
             break;
             
         default:
-            LOG_ERROR("unsupported cpid 0x%" PRIX32 "", cpid);
+            ERR("unsupported cpid 0x%" PRIX32 "", cpid);
             return false;
     }
     
@@ -1294,17 +1296,17 @@ checkm8_stage_patch(const usb_handle_t *handle)
     {
         if(checkm8_usb_request_stall(handle) && checkm8_usb_request_leak(handle))
         {
-            LOG_DEBUG("successfully leaked data");
+            DEVLOG("successfully leaked data");
         }
         else
         {
-            LOG_ERROR("failed to leak data");
+            ERR("failed to leak data");
             return false;
         }
         
         for(i = 0; i < 2; i++)
         {
-            LOG_DEBUG("i = %zu", i);
+            DEVLOG("i = %zu", i);
             send_usb_control_request_no_data(handle, 2, 3, 0, 0x80, 0, NULL);
         }
         
@@ -1334,47 +1336,36 @@ checkm8_stage_patch(const usb_handle_t *handle)
 static void compress_pongo(void *out,
                            size_t *out_len)
 {
-    if(override_Pongo)
-    {
-    size_t len = override_Pongo_bin_len;
+    size_t len = load_pongo_len;
     size_t out_len_ = *out_len;
-    *out_len = LZ4_compress_HC(override_Pongo_bin, out, len, out_len_, LZ4HC_CLEVEL_MAX);
-    }
-    else
-    {
-    size_t len = payloads_Pongo_bin_len;
-    size_t out_len_ = *out_len;
-    *out_len = LZ4_compress_HC(payloads_Pongo_bin, out, len, out_len_, LZ4HC_CLEVEL_MAX);
-    }
+    *out_len = LZ4_compress_HC(load_pongo, out, len, out_len_, LZ4HC_CLEVEL_MAX);
 }
 
 static bool checkm8_boot_pongo(usb_handle_t *handle)
 {
     transfer_ret_t transfer_ret;
-    LOG_INFO("Booting pongoOS");
-    LOG_DEBUG("Compressing pongoOS");
-    LOG_DEBUG("Appending shellcode to the top of pongoOS (512 bytes)");
+    LOG("Booting pongoOS");
+    DEVLOG("Compressing pongoOS");
+    DEVLOG("Appending shellcode to the top of pongoOS (512 bytes)");
     void *shellcode = malloc(512);
     memcpy(shellcode, payloads_lz4dec_bin, payloads_lz4dec_bin_len);
     size_t out_len = 0;
-    if(override_Pongo)
+    if(override_pongo)
     {
-        out_len = override_Pongo_bin_len;
+        override_file_t pongo = override_file(override_pongo);
+        load_pongo = pongo.ptr;
+        load_pongo_len = pongo.len;
+        out_len = pongo.len;
     }
     else
     {
+        load_pongo = payloads_Pongo_bin;
+        load_pongo_len = payloads_Pongo_bin_len;
         out_len = payloads_Pongo_bin_len;
     }
     void *out = malloc(out_len);
     compress_pongo(out, &out_len);
-    if(override_Pongo)
-    {
-        LOG_DEBUG("Compressed pongoOS from %u to %zu bytes", override_Pongo_bin_len, out_len);
-    }
-    else
-    {
-        LOG_DEBUG("Compressed pongoOS from %u to %zu bytes", payloads_Pongo_bin_len, out_len);
-    }
+    DEVLOG("Compressed pongoOS from %u to %zu bytes", load_pongo_len, out_len);
     void *tmp = malloc(out_len + 512);
     memcpy(tmp, shellcode, 512);
     memcpy(tmp + 512, out, out_len);
@@ -1382,14 +1373,14 @@ static bool checkm8_boot_pongo(usb_handle_t *handle)
     out = tmp;
     out_len += 512;
     free(shellcode);
-    LOG_DEBUG("Setting the compressed size into the shellcode");
+    DEVLOG("Setting the compressed size into the shellcode");
     uint32_t* size = (uint32_t*)(out + 0x1fc);
-    LOG_DEBUG("size = 0x%" PRIX32 "", *size);
+    DEVLOG("size = 0x%" PRIX32 "", *size);
     *size = out_len - 512;
-    LOG_DEBUG("size = 0x%" PRIX32 "", *size);
-    LOG_DEBUG("Reconnecting to device");
+    DEVLOG("size = 0x%" PRIX32 "", *size);
+    DEVLOG("Reconnecting to device");
     init_usb_handle(handle, APPLE_VID, DFU_MODE_PID);
-    LOG_DEBUG("Waiting for device to be ready");
+    DEVLOG("Waiting for device to be ready");
     wait_usb_handle(handle, NULL, NULL);
     {
         size_t len = 0;
@@ -1401,7 +1392,7 @@ static bool checkm8_boot_pongo(usb_handle_t *handle)
             send_usb_control_request(handle, 0x21, DFU_DNLOAD, 0, 0, (unsigned char*)&out[len], size, &transfer_ret);
             if(transfer_ret.ret == USB_TRANSFER_TIMEOUT)
             {
-                LOG_DEBUG("retrying at len = %zu", len);
+                DEVLOG("retrying at len = %zu", len);
                 sleep_ms(100);
                 goto retry;
             }
@@ -1411,11 +1402,11 @@ static bool checkm8_boot_pongo(usb_handle_t *handle)
                 return false;
             }
             len += size;
-            LOG_DEBUG("len = %zu", len);
+            DEVLOG("len = %zu", len);
         }
     }
     send_usb_control_request_no_data(handle, 0x21, 4, 0, 0, 0, NULL);
-    LOG_DEBUG("pongoOS sent, should be booting");
+    DEVLOG("pongoOS sent, should be booting");
     return true;
 }
 
@@ -1444,7 +1435,7 @@ gaster_checkm8(usb_handle_t *handle)
             }
             else if(stage == STAGE_SETUP)
             {
-                LOG_INFO("Setting up the exploit (this is the heap spray)");
+                LOG("Setting up the exploit (this is the heap spray)");
                 ret = checkm8_stage_setup(handle);
                 stage = STAGE_SPRAY;
             }
@@ -1455,17 +1446,17 @@ gaster_checkm8(usb_handle_t *handle)
             }
             else
             {
-                LOG_INFO("Right before trigger (this is the real bug setup)");
+                LOG("Right before trigger (this is the real bug setup)");
                 ret = checkm8_stage_patch(handle);
                 stage = STAGE_RESET;
             }
             if(ret)
             {
-                LOG_DEBUG("Stage %d succeeded", stage);
+                DEVLOG("Stage %d succeeded", stage);
             }
             else
             {
-                LOG_ERROR("Stage %d failed", stage);
+                ERR("Stage %d failed", stage);
                 stage = STAGE_RESET;
             }
             reset_usb_handle(handle);
@@ -1479,8 +1470,9 @@ gaster_checkm8(usb_handle_t *handle)
     return stage == STAGE_PWNED;
 }
 
-int main(int argc, char **argv)
+int openra1n(int argc, char **argv)
 {
+#ifndef DEVBUILD
         int opt = 0;
     static struct option longopts[] = {
         { "override_Pongo",       required_argument, NULL, 'k' },
@@ -1490,33 +1482,30 @@ int main(int argc, char **argv)
     while ((opt = getopt_long(argc, argv, "k:", longopts, NULL)) > 0) {
         switch (opt) {
             case 'k':
-                LOG_DEBUG("overwrite pongo\n");
-                override_Pongo = 1;
-                FILE *Pongo = fopen(optarg, "rb");
-                if (Pongo == NULL) {
-			        LOG_ERROR("PongoOS doesn't find.\n");
-			        return -1;
-		        }
-                fseek(Pongo, 0, SEEK_END);
-		        override_Pongo_bin_len = ftell(Pongo);
-		        fseek(Pongo, 0, SEEK_SET);
-	        	override_Pongo_bin = malloc(override_Pongo_bin_len);
-	        	fread(override_Pongo_bin, override_Pongo_bin_len, 1, Pongo);
-	        	fclose(Pongo);
+                DEVLOG("overwrite pongo\n");
+                override_pongo = strdup(optarg);
                 break;
 
             default:
                 break;
         }
     }
+#endif
     LOG_RAINBOW("-=-=- openra1n -=-=-");
     int ret = EXIT_FAILURE;
     usb_handle_t handle;
     usb_timeout = 5;
     usb_abort_timeout_min = 0;
-    LOG_INFO("Waiting for DFU mode device");
+    LOG("Waiting for DFU mode device");
     gaster_checkm8(&handle);
     sleep_ms(3000);
     checkm8_boot_pongo(&handle);
     return ret;
 }
+
+#ifndef DEVBUILD
+int main(int argc, char** argv)
+{
+    openra1n(argc, argv);
+}
+#endif
